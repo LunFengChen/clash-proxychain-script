@@ -1,227 +1,186 @@
-# Clash Verge Rev 全局链式代理脚本使用说明
+# Clash ProxyChain Script
 
-这个目录里的 `Script.js` 是 Clash Verge Rev 的全局增强脚本模板。它会在每个订阅生成最终 Mihomo 配置时自动执行，所以换订阅后不用重新改脚本。
-
-## 链式代理方向
-
-脚本里的链路方向是：
+这是给 Clash Verge Rev / Mihomo 用的全局脚本模板。目标不是维护一堆 App 分流，而是做一个普通人能理解的模型：
 
 ```text
-本机应用 -> 订阅节点/前置节点 -> 可选中转节点 -> SOCKS5 落地节点 -> 目标网站
+进程例外优先 -> 本地/LAN直连 -> 国内IP走国内组 -> 其他全部走国外组
 ```
 
-对应到配置名：
+默认生成这些可选组：
 
-```text
-Chain-Front -> US-Chicago-Chain -> 目标网站
+| 组名 | 含义 | 默认可选 |
+| --- | --- | --- |
+| `Domestic-Sites` | 国内流量入口 | `DIRECT` / `Chain-US-Chicago` |
+| `Foreign-Sites` | 国外流量入口 | `Chain-US-Chicago` / `DIRECT` |
+| `Chain-US-Chicago` | 美国落地链路 | 链式 / 单独 SOCKS / `DIRECT` |
+| `Chain-Front` | 链路前置节点 | 订阅的 `节点选择` / `自动选择` / `DIRECT` |
+| `Default` | 兜底入口 | `Foreign-Sites` / `Domestic-Sites` / `DIRECT` |
+
+## 最常见用法
+
+只改 `Script.js` 顶部的 `USER_CONFIG`。
+
+### 1. 填你的 SOCKS5 落地节点
+
+```js
+chains: [
+  {
+    id: "US",
+    name: "US-Chicago",
+    chainName: "US-Chicago-Chain",
+    chainGroup: "Chain-US-Chicago",
+    hops: [
+      {
+        name: "US-Chicago",
+        proxy: {
+          type: "socks5",
+          server: "YOUR_LANDING_SERVER",
+          port: 443,
+          username: "YOUR_USERNAME",
+          password: "YOUR_PASSWORD",
+          udp: true,
+        },
+      },
+    ],
+  },
+],
 ```
 
-`US-Chicago-Chain` 里会自动生成：
+如果 SOCKS5 不需要账号密码，删掉 `username` 和 `password`。
+
+### 2. 国内流量怎么走
+
+```js
+domesticChoices: ["DIRECT", "US"],
+```
+
+意思是 Clash Verge 里 `Domestic-Sites` 这个组可以选：
+
+- `DIRECT`：国内直连
+- `US`：走 `id: "US"` 对应的链路，即 `Chain-US-Chicago`
+
+你要国内默认走代理，就改成：
+
+```js
+domesticChoices: ["US", "DIRECT"],
+```
+
+### 3. 国外流量怎么走
+
+```js
+foreignChoices: ["US", "DIRECT"],
+```
+
+意思是国外默认走 US 链路。一般不用改。
+
+### 4. 指定进程例外
+
+微信/QQ 这种有时候走 TUN/代理会很怪，所以默认保留进程直连：
+
+```js
+processRules: [
+  {
+    note: "WeChat / QQ direct by default",
+    policy: "DIRECT",
+    names: ["wechat", "WeChat", "WeChat.exe", "qq", "QQ"],
+  },
+],
+```
+
+你想让某个进程强制走国外：
+
+```js
+{ note: "Telegram always foreign", policy: "FOREIGN", names: ["Telegram", "telegram-desktop"] },
+```
+
+你想让某个进程强制走国内组：
+
+```js
+{ note: "Chrome uses domestic bucket", policy: "DOMESTIC", names: ["chrome"] },
+```
+
+支持的 `policy`：
+
+| policy | 含义 |
+| --- | --- |
+| `DIRECT` | 直连 |
+| `DOMESTIC` | 走 `Domestic-Sites` |
+| `FOREIGN` | 走 `Foreign-Sites` |
+| `US` | 走 `id: "US"` 对应链路 |
+| `Chain-US-Chicago` | 也可以直接写 Clash 里的组名 |
+
+## 它到底怎么分流？
+
+脚本会重建最终规则，避免订阅自带的“哔哩哔哩 / 抖音 / 某某服务”分组抢先命中。
+
+最终核心规则类似：
 
 ```yaml
-dialer-proxy: Chain-Front
+PROCESS-NAME,WeChat,DIRECT
+DOMAIN-SUFFIX,local,DIRECT
+GEOIP,LAN,DIRECT
+DOMAIN-SUFFIX,cn,Domestic-Sites
+GEOIP,CN,Domestic-Sites
+MATCH,Foreign-Sites
 ```
 
-这表示 `US-Chicago-Chain` 会通过 `Chain-Front` 拨出。`Chain-Front` 里默认包含当前订阅里的 `节点选择`、`自动选择` 和 `DIRECT`。
+也就是说：
 
-三级跳时方向类似：
+- 国内不是按 App 名单分流；
+- 国内主要按 `GEOIP,CN` 进入 `Domestic-Sites`；
+- 国外全部进入 `Foreign-Sites`；
+- B 站、抖音、知乎这类不会再因为订阅自带服务组被单独劫走。
 
-```text
-Chain-Front -> US-NewYork-Hop -> US-Chicago-Chain -> 目标网站
-```
+## Clash Verge Rev 里怎么安装
 
-最后一个 hop 才是最终落地节点，中间 hop 只是中转。
-
-## 能不能 GUI 直接导入 JS？
-
-Clash Verge Rev 当前更准确的用法不是“把 JS 当订阅导入”。订阅导入框主要处理 HTTP/HTTPS 订阅链接，不是导入增强脚本文件。
-
-推荐两种方式：
-
-1. GUI 粘贴法，适合给别人用。
-2. 直接覆盖配置目录里的 `Script.js`，适合熟悉文件路径的人。
-
-## 方法一：GUI 粘贴法
+### GUI 粘贴法
 
 1. 打开 Clash Verge Rev。
-2. 进入 `Profiles` / `配置` 页面。
+2. 进入 `Profiles` / `配置`。
 3. 找到全局增强项 `Script` / `Global Script` / `全局脚本`。
-4. 双击或右键选择编辑。
-5. 打开本目录的 `Script.js`，复制全部内容，粘贴覆盖编辑器里的内容。
-6. 保存。
-7. 刷新或切换一次订阅，让配置重新生成。
+4. 编辑它，把本仓库 `Script.js` 全部复制进去。
+5. 保存。
+6. 刷新当前订阅或重启 Clash Verge Rev。
 
-源码确认：Clash Verge Rev 会先执行全局 `Script.js`，再执行当前订阅自己的扩展脚本。因此全局 `Script.js` 对切换后的订阅仍然生效。
+### 直接覆盖文件
 
-## 方法二：直接覆盖文件
-
-Linux 上配置目录通常是：
+Linux 常见路径：
 
 ```text
 ~/.local/share/io.github.clash-verge-rev.clash-verge-rev/profiles/Script.js
 ```
 
-把本目录的 `Script.js` 覆盖到上面的路径，然后回到 Clash Verge Rev 里刷新配置或重启 Clash Verge Rev。
+覆盖后刷新订阅即可。
 
-如果不知道配置目录在哪，可以在 Clash Verge Rev 的全局 `Script` 项上右键，选择打开文件，然后替换打开的那个文件内容。
+## 多跳链路
 
-## 必须先改的地方
-
-打开 `Script.js`，先改 `CHAINS` 里的 SOCKS5 落地节点：
+多个 hop 按数组顺序写。最后一个 hop 是最终落地：
 
 ```js
 {
-  name: "US-Chicago",
-  chainName: "US-Chicago-Chain",
-  chainGroup: "Chain-US-Chicago",
-  hops: [
-    {
-      name: "US-Chicago",
-      proxy: {
-        type: "socks5",
-        server: "YOUR_LANDING_SERVER",
-        port: 443,
-        username: "YOUR_USERNAME",
-        password: "YOUR_PASSWORD",
-        udp: true,
-      },
-    },
-  ],
-}
-```
-
-如果你的 SOCKS5 不需要用户名密码，可以删掉 `username` 和 `password` 两行。
-
-## 换订阅后会怎样
-
-不需要改脚本。
-
-换订阅后，脚本会重新根据新订阅生成这些组：
-
-- `Chain-Front`：前置节点选择组，引用新订阅里的 `节点选择`、`自动选择`、`DIRECT`。
-- `US-Chicago`：直连 SOCKS5 落地节点。
-- `US-Chicago-Chain`：后置落地节点，通过 `Chain-Front` 拨出。
-- `Chain-US-Chicago`：链式落地选择组。
-- `Domestic-Sites`：国内网站策略组，默认先 `DIRECT`，也保留落地节点选项。
-- `Default`：最终默认出口。
-
-## 新增落地节点
-
-只改 `CHAINS` 数组，不要到处复制配置。例子：
-
-```js
-{
-  name: "CN-Shanghai",
-  chainName: "CN-Shanghai-Chain",
-  chainGroup: "Chain-CN-Shanghai",
-  hops: [
-    {
-      name: "CN-Shanghai",
-      proxy: {
-        type: "socks5",
-        server: "YOUR_CN_SERVER",
-        port: 443,
-        username: "YOUR_USERNAME",
-        password: "YOUR_PASSWORD",
-        udp: true,
-      },
-    },
-  ],
-}
-```
-
-再加一个美国纽约：
-
-```js
-{
-  name: "US-NewYork",
-  chainName: "US-NewYork-Chain",
-  chainGroup: "Chain-US-NewYork",
-  hops: [
-    {
-      name: "US-NewYork",
-      proxy: {
-        type: "socks5",
-        server: "YOUR_US_SERVER",
-        port: 443,
-        username: "YOUR_USERNAME",
-        password: "YOUR_PASSWORD",
-        udp: true,
-      },
-    },
-  ],
-}
-```
-
-命名约定：
-
-- `US-Chicago` 表示落地节点本身。
-- `US-Chicago-Chain` 表示通过前置节点再连这个落地节点。
-- `Chain-US-Chicago` 表示给界面选择用的链式组。
-
-## 三级跳或更多跳
-
-在同一个 chain 的 `hops` 里放多个节点即可。脚本会按顺序自动生成 `dialer-proxy`。
-
-例如：
-
-```text
-本机 -> 订阅节点 -> US-NewYork-Relay -> US-Chicago -> 目标网站
-```
-
-对应配置：
-
-```js
-{
+  id: "US",
   name: "US-Chicago-via-NewYork",
   chainName: "US-Chicago-via-NewYork-Chain",
   chainGroup: "Chain-US-Chicago-via-NewYork",
   hops: [
     {
       name: "US-NewYork-Relay",
-      proxy: {
-        type: "socks5",
-        server: "YOUR_RELAY_SERVER",
-        port: 443,
-        username: "YOUR_USERNAME",
-        password: "YOUR_PASSWORD",
-        udp: true,
-      },
+      proxy: { type: "socks5", server: "RELAY", port: 443, udp: true },
     },
     {
       name: "US-Chicago",
-      proxy: {
-        type: "socks5",
-        server: "YOUR_LANDING_SERVER",
-        port: 443,
-        username: "YOUR_USERNAME",
-        password: "YOUR_PASSWORD",
-        udp: true,
-      },
+      proxy: { type: "socks5", server: "LANDING", port: 443, udp: true },
     },
   ],
 }
 ```
 
-生成后的链路是：
+链路方向：
 
 ```text
-Chain-Front -> US-Chicago-via-NewYork-Hop1-US-NewYork-Relay -> US-Chicago-via-NewYork-Chain
+本机 -> Chain-Front -> US-NewYork-Relay -> US-Chicago -> 目标网站
 ```
-
-要四级跳、五级跳，就继续往 `hops` 里加节点。数组里最后一个 hop 是最终落地。
-
-## 微信图片慢的处理
-
-脚本里已经加了微信/QQ 相关直连规则和 TUN 排除：
-
-- `find-process-mode: always`
-- 微信/QQ 进程直连
-- `qq.com`、`tencent.com`、`gtimg.com`、`qpic.cn` 等域名直连
-- 部分微信图片相关 IP 段加入 `tun.route-exclude-address`
-
-如果某个网络环境下仍然慢，先看 Clash Verge Rev 日志里微信图片请求命中了哪个规则，再补对应域名或 IP 段。
 
 ## 注意
 
-不要把带真实 `server`、`username`、`password` 的脚本公开发布。给别人用时，让对方填自己的 SOCKS5 落地节点信息。
+不要把带真实 `server`、`username`、`password` 的脚本公开发布。仓库模板里只应该放占位符。
