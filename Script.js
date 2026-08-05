@@ -75,7 +75,7 @@ const USER_CONFIG = {
   // behavior breaks under TUN/proxy. Keep this list short and understandable.
   processRules: [
     {
-      note: "WeChat / QQ direct by default",
+      note: "WeChat / QQ / WeCom direct by default",
       policy: "DIRECT",
       names: [
         "wechat",
@@ -87,6 +87,21 @@ const USER_CONFIG = {
         "wxutility",
         "qq",
         "QQ",
+        "WXWork",
+        "WXWork.exe",
+        "wxwork",
+        "WeCom",
+        "WeCom.exe",
+        "WeMailNode",
+        "WeMailNode.exe",
+        "WXDrive",
+        "WXDrive.exe",
+        "WXWorkWeb",
+        "WXWorkWeb.exe",
+        "WXWorkCommand",
+        "WXWorkCommand.exe",
+        "WeMeet",
+        "WeMeet.exe",
       ],
     },
 
@@ -96,11 +111,14 @@ const USER_CONFIG = {
     // { note: "Force one app to one raw group", policy: "Chain-US-Chicago", names: ["my-app"] },
   ],
 
-  // 5) Optional direct IP ranges for special apps/networks.
+  // 5) Domains that must always bypass proxy groups.
+  directDomains: [],
+
+  // 6) Optional direct IP ranges for special apps/networks.
   // Usually leave this empty. Put CIDR strings here only after logs prove they are needed.
   directIpRanges: [],
 
-  // 6) Keep only these original subscription groups in the GUI.
+  // 7) Keep only these original subscription groups in the GUI.
   // The script adds its own Domestic/Foreign/Chain groups, so hiding vendor service groups
   // makes the UI easier to understand. Add names here if you still want to see them.
   keepOriginalGroups: [],
@@ -125,6 +143,7 @@ function main(config, profileName) {
   config["proxy-groups"] = keepOnlyUsefulGroups(config["proxy-groups"], settings);
 
   addManagedGroups(config, chains, settings);
+  addDirectDnsPolicies(config, settings);
   rebuildRules(config, settings, chains);
 
   return config;
@@ -148,6 +167,7 @@ function normalizeUserConfig(input) {
     domesticChoices: Array.isArray(input.domesticChoices) ? input.domesticChoices : ["DIRECT"],
     foreignChoices: Array.isArray(input.foreignChoices) ? input.foreignChoices : ["DIRECT"],
     processRules: Array.isArray(input.processRules) ? input.processRules : [],
+    directDomains: Array.isArray(input.directDomains) ? input.directDomains : [],
     directIpRanges: Array.isArray(input.directIpRanges) ? input.directIpRanges : [],
     keepOriginalGroups: Array.isArray(input.keepOriginalGroups) ? input.keepOriginalGroups : [],
   };
@@ -267,7 +287,7 @@ function addManagedGroups(config, chains, settings) {
 function rebuildRules(config, settings, chains) {
   const groups = settings.groups;
   const processRules = buildProcessRules(settings.processRules, settings, chains);
-  const directRules = buildDirectRules(config.rules, settings.directIpRanges);
+  const directRules = buildDirectRules(config.rules, settings.directIpRanges, settings.directDomains);
 
   if (processRules.length > 0) {
     config["find-process-mode"] = "always";
@@ -299,15 +319,45 @@ function buildProcessRules(processRuleGroups, settings, chains) {
   });
 }
 
-function buildDirectRules(existingRules, directIpRanges) {
+function buildDirectRules(existingRules, directIpRanges, directDomains) {
   const kept = (Array.isArray(existingRules) ? existingRules : []).filter((rule) => {
     return typeof rule === "string" && shouldKeepDirectRule(rule);
   });
 
   return unique([
     ...kept,
+    ...directDomains.map(buildDirectDomainRule).filter(Boolean),
     ...directIpRanges.map((range) => `IP-CIDR,${range},DIRECT,no-resolve`),
   ]);
+}
+
+function addDirectDnsPolicies(config, settings) {
+  const domains = unique((settings.directDomains || []).map(normalizeDomain));
+  if (domains.length === 0) return;
+
+  config.dns = config.dns || {};
+  const policy = config.dns["nameserver-policy"];
+  const currentPolicy = policy && typeof policy === "object" && !Array.isArray(policy) ? { ...policy } : {};
+
+  for (const domain of domains) {
+    currentPolicy[domain] = "system";
+  }
+
+  config.dns["nameserver-policy"] = currentPolicy;
+  config.dns["direct-nameserver-follow-policy"] = true;
+}
+
+function buildDirectDomainRule(value) {
+  const domain = normalizeDomain(value);
+  return domain ? `DOMAIN,${domain},DIRECT` : null;
+}
+
+function normalizeDomain(value) {
+  const text = `${value || ""}`.trim();
+  if (!text) return null;
+
+  const withoutScheme = text.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "");
+  return withoutScheme.split(/[/?#]/)[0].replace(/^\.+|\.+$/g, "").toLowerCase() || null;
 }
 
 function resolveChoiceList(tokens, settings, chains, fallback) {

@@ -75,14 +75,14 @@ foreignChoices: ["US", "DIRECT"],
 
 ### 4. 指定进程例外
 
-微信/QQ 这种有时候走 TUN/代理会很怪，所以默认保留进程直连：
+微信/QQ/企业微信 这种有时候走 TUN/代理会很怪，所以默认保留进程直连：
 
 ```js
 processRules: [
   {
-    note: "WeChat / QQ direct by default",
+    note: "WeChat / QQ / WeCom direct by default",
     policy: "DIRECT",
-    names: ["wechat", "WeChat", "WeChat.exe", "qq", "QQ"],
+    names: ["wechat", "WeChat", "WeChat.exe", "qq", "QQ", "WXWork", "WXWork.exe", "WeCom", "WeMailNode.exe"],
   },
 ],
 ```
@@ -98,6 +98,19 @@ processRules: [
 ```js
 { note: "Chrome uses domestic bucket", policy: "DOMESTIC", names: ["chrome"] },
 ```
+
+### 5. 指定域名直连
+
+需要绕过所有代理策略，并让 Mihomo 用系统 DNS 解析时，可以配置：
+
+```js
+directDomains: [
+  "git.datastory.com.cn",
+],
+```
+
+脚本会生成 `DOMAIN,git.datastory.com.cn,DIRECT`，并给 `dns.nameserver-policy` 加上 `git.datastory.com.cn: system`。
+这里填主机名即可，不要填 `https://`、路径或端口。
 
 支持的 `policy`：
 
