@@ -112,6 +112,14 @@ directDomains: [
 脚本会生成 `DOMAIN,git.datastory.com.cn,DIRECT`，并给 `dns.nameserver-policy` 加上 `git.datastory.com.cn: system`。
 这里填主机名即可，不要填 `https://`、路径或端口。
 
+如果关 Clash/TUN 能访问，开 Clash/TUN 后同一域名直连超时，说明连接路径仍被 TUN 接管了。把解析出来的目标 IP 加到 `directIpRanges`，脚本会加入 `tun.route-exclude-address`：
+
+```js
+directIpRanges: [
+  "28.0.0.6/32",
+],
+```
+
 支持的 `policy`：
 
 | policy | 含义 |
