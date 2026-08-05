@@ -13,7 +13,7 @@
 | `Domestic-Sites` | 国内流量入口 | `DIRECT` / `Chain-US-Chicago` |
 | `Foreign-Sites` | 国外流量入口 | `Chain-US-Chicago` / `DIRECT` |
 | `Chain-US-Chicago` | 美国落地链路 | 链式 / 单独 SOCKS / `DIRECT` |
-| `Chain-Front` | 链路前置节点 | 订阅的 `节点选择` / `自动选择` / `DIRECT` |
+| `Chain-Front` | 链路前置节点 | 订阅的 `自动选择` / `节点选择` / `DIRECT` |
 | `Default` | 兜底入口 | `Foreign-Sites` / `Domestic-Sites` / `DIRECT` |
 
 ## 最常见用法
@@ -47,6 +47,27 @@ chains: [
 ```
 
 如果 SOCKS5 不需要账号密码，删掉 `username` 和 `password`。
+
+链式落地节点会生成 `dialer-proxy`。默认走 `Chain-Front`，而 `Chain-Front` 现在优先使用订阅里的 `自动选择`，这样前置机场节点挂掉时可以自动切换。
+
+如果某条链要固定指定前置节点，可以在链配置里写：
+
+```js
+front: "日本JP-HY2",
+```
+
+如果某条链要直接使用原机场自动组作为跳板，可以写：
+
+```js
+front: "自动选择",
+```
+
+这类链建议把名字也标成 `机场:auto`，例如：
+
+```js
+id: "local->机场:auto->webshare:US:california",
+chainName: "[Chain] local->机场:auto->webshare:US:california",
+```
 
 ### 2. 国内流量怎么走
 

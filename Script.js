@@ -247,7 +247,7 @@ function keepOnlyUsefulGroups(existingGroups, settings) {
 function addManagedGroups(config, chains, settings) {
   const groups = settings.groups;
   const existingGroupNames = new Set((config["proxy-groups"] || []).map((group) => group.name));
-  const fallbackFrontChoices = [groups.originalSelect, groups.originalAuto, "DIRECT"].filter((name) => {
+  const fallbackFrontChoices = [groups.originalAuto, groups.originalSelect, "DIRECT"].filter((name) => {
     return name === "DIRECT" || existingGroupNames.has(name);
   });
 
