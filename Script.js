@@ -115,7 +115,8 @@ const USER_CONFIG = {
   directDomains: [],
 
   // 6) Optional direct IP ranges for special apps/networks.
-  // Usually leave this empty. Put CIDR strings here only after logs prove they are needed.
+  // Usually leave this empty. Put only real public/private CIDR strings here after logs prove they are needed.
+  // Do NOT put Mihomo fake-ip addresses here, such as 28.0.0.0/8 or 198.18.0.0/15.
   directIpRanges: [],
 
   // 7) Keep only these original subscription groups in the GUI.

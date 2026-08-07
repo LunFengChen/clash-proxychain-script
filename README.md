@@ -133,13 +133,15 @@ directDomains: [
 脚本会生成 `DOMAIN,git.datastory.com.cn,DIRECT`，并给 `dns.nameserver-policy` 加上 `git.datastory.com.cn: system`。
 这里填主机名即可，不要填 `https://`、路径或端口。
 
-如果关 Clash/TUN 能访问，开 Clash/TUN 后同一域名直连超时，说明连接路径仍被 TUN 接管了。把解析出来的目标 IP 加到 `directIpRanges`，脚本会加入 `tun.route-exclude-address`：
+如果关 Clash/TUN 能访问，开 Clash/TUN 后同一域名直连超时，说明连接路径仍被 TUN 接管了。此时只能把**目标真实公网 IP/CIDR** 加到 `directIpRanges`，脚本会加入 `tun.route-exclude-address`：
 
 ```js
 directIpRanges: [
-  "28.0.0.6/32",
+  "目标真实公网IP/32",
 ],
 ```
+
+不要填写 Mihomo fake-ip（例如 `28.0.0.0/8`、`198.18.0.0/15` 里的地址）。fake-ip 会动态复用；把 fake-ip 加入 `route-exclude-address` 后，其他域名可能拿到同一个 fake-ip，从而绕过 TUN 直连到假地址并超时。
 
 支持的 `policy`：
 
